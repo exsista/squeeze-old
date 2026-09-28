@@ -26,10 +26,10 @@ jobs:
 
           python -m pip install --upgrade pip
           python -m pip install "protobuf==4.25.6" "grpcio-tools==1.62.3"
-          
+
           rm -rf build sdkconfig
-          
-          # Buat kembali file partisi kustom (4MB untuk factory app)
+
+          # Partisi kustom (4MB factory app)
           cat << 'EOF' > partitions.csv
           # Name,   Type, SubType, Offset,  Size, Flags
           nvs,      data, nvs,     ,        0x4000,
@@ -39,12 +39,12 @@ jobs:
           storage,  data,,         ,        0x100000,
           EOF
 
-          # Konfigurasi lengkap ESP32-S3, PSRAM, Partisi Kustom, dan Pin I2S
-          cat << 'EOF' > sdkconfig.defaults
+          # Ditambahkan (>>) supaya default bawaan upstream tetap ada
+          cat << 'EOF' >> sdkconfig.defaults
           CONFIG_IDF_TARGET="esp32s3"
           CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
           CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
-          CONFIG_SPIRAM=y
+          CONFIG_ESP32S3_SPIRAM_SUPPORT=y
           CONFIG_SPIRAM_MODE_OCT=y
           CONFIG_SPIRAM_TYPE_AUTO=y
           CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS=2
@@ -53,20 +53,24 @@ jobs:
           CONFIG_ETH_SPI_ETHERNET_W5500=y
           CONFIG_BT_SINK=n
           CONFIG_BT_ENABLED=n
+          CONFIG_BT_BLUEDROID_ENABLED=n
           CONFIG_CLASSIC_BT_ENABLED=n
           CONFIG_PARTITION_TABLE_CUSTOM=y
           CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
           CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
-          CONFIG_I2S_BCK_IO_NUM=4
-          CONFIG_I2S_WS_IO_NUM=5
-          CONFIG_I2S_DATA_OUT_NUM=6
-          CONFIG_I2S_DATA_IN_NUM=-1
+          CONFIG_I2S_NUM=0
+          CONFIG_I2S_BCK_IO=4
+          CONFIG_I2S_WS_IO=5
+          CONFIG_I2S_DO_IO=6
+          CONFIG_SPDIF_BCK_IO=4
+          CONFIG_SPDIF_WS_IO=5
+          CONFIG_SPDIF_DO_IO=7
           EOF
 
           idf.py set-target esp32s3
-          
-          echo 'include_directories("$ENV{IDF_PATH}/components/esp_eth/include")' >> CMakeLists.txt
-          echo 'string(APPEND CMAKE_CXX_FLAGS " -fexceptions")' >> CMakeLists.txt
+
+          echo "=== Cek hasil konfigurasi ==="
+          grep -E "^CONFIG_(IDF_TARGET|ESP32S3_SPIRAM_SUPPORT|SPIRAM_MODE_OCT|BT_ENABLED|BT_SINK|I2S_|SPDIF_|SDIF_)" sdkconfig || true
 
       - name: Compile Firmware
         shell: bash
@@ -84,3 +88,4 @@ jobs:
             build/partition_table/partition-table.bin
             build/ota_data_initial.bin
             build/squeezelite*.bin
+            build/flasher_args.json
