@@ -1,4 +1,4 @@
-gname: Build ESP32-S3 N16R8
+name: Build ESP32-S3 N16R8
 
 on:
   workflow_dispatch:
