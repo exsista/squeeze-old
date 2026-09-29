@@ -1,4 +1,4 @@
-name: Build ESP32-S3 N16R8
+gname: Build ESP32-S3 N16R8
 
 on:
   workflow_dispatch:
@@ -77,6 +77,9 @@ jobs:
           EOF
 
           idf.py set-target esp32s3
+          mkdir -p components/squeezelite/include_stub
+          touch components/squeezelite/include_stub/bt_app_sink.h
+          echo 'include_directories("${{ github.workspace }}/components/squeezelite/include_stub")' >> CMakeLists.txt
 
           echo 'include_directories("$ENV{IDF_PATH}/components/esp_eth/include")' >> CMakeLists.txt
           echo 'string(APPEND CMAKE_CXX_FLAGS " -fexceptions")' >> CMakeLists.txt
