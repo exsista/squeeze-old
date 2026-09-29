@@ -29,48 +29,57 @@ jobs:
 
           rm -rf build sdkconfig
 
-          # Partisi kustom (4MB factory app)
+          # Partition table custom - WAJIB ada partisi nvs yang valid
           cat << 'EOF' > partitions.csv
-          # Name,   Type, SubType, Offset,  Size, Flags
-          nvs,      data, nvs,     ,        0x4000,
-          otadata,  data, ota,     ,        0x2000,
-          phy_init, data, phy,     ,        0x1000,
-          factory,  app,  factory, ,        0x400000,
-          storage,  data,,         ,        0x100000,
+          # Name,   Type, SubType, Offset,  Size,     Flags
+          nvs,      data, nvs,     0x9000,  0x6000,
+          otadata,  data, ota,     0xf000,  0x2000,
+          phy_init, data, phy,     0x11000, 0x1000,
+          factory,  app,  factory, 0x12000, 0x400000,
+          storage,  data, 0xff,    0x412000,0x100000,
           EOF
 
-          # Ditambahkan (>>) supaya default bawaan upstream tetap ada
-          cat << 'EOF' >> sdkconfig.defaults
+          # Konfigurasi sdkconfig.defaults yang kompatibel untuk ESP32-S3 N16R8
+          cat << 'EOF' > sdkconfig.defaults
           CONFIG_IDF_TARGET="esp32s3"
           CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
           CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
-          CONFIG_ESP32S3_SPIRAM_SUPPORT=y
+          CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+
+          # Konfigurasi PSRAM Octal sesuai standar fisik N16R8
+          CONFIG_SPIRAM=y
           CONFIG_SPIRAM_MODE_OCT=y
           CONFIG_SPIRAM_TYPE_AUTO=y
+          CONFIG_SPIRAM_SPEED_80M=y
+          CONFIG_SPIRAM_USE_MALLOC=y
+          CONFIG_SPIRAM_MEMTEST=y
+          CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+
           CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS=2
           CONFIG_COMPILER_CXX_EXCEPTIONS=y
-          CONFIG_ETH_USE_SPI_ETHERNET=y
-          CONFIG_ETH_SPI_ETHERNET_W5500=y
-          CONFIG_BT_SINK=n
-          CONFIG_BT_ENABLED=n
-          CONFIG_BT_BLUEDROID_ENABLED=n
-          CONFIG_CLASSIC_BT_ENABLED=n
+
+          # Partition table custom
           CONFIG_PARTITION_TABLE_CUSTOM=y
           CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
           CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+          # Nonaktifkan Bluetooth (S3 tidak support BT Classic)
+          CONFIG_BT_ENABLED=n
+          CONFIG_BTAUDIO=n
+
+          # Audio I2S - pin aman, jauh dari JTAG/PSRAM/strapping
           CONFIG_I2S_NUM=0
           CONFIG_I2S_BCK_IO=4
           CONFIG_I2S_WS_IO=5
           CONFIG_I2S_DO_IO=6
-          CONFIG_SPDIF_BCK_IO=4
-          CONFIG_SPDIF_WS_IO=5
-          CONFIG_SPDIF_DO_IO=7
+          CONFIG_I2S_BITS_PER_CHANNEL_16=y
+          CONFIG_I2S_BITS_PER_CHANNEL=16
           EOF
 
           idf.py set-target esp32s3
 
-          echo "=== Cek hasil konfigurasi ==="
-          grep -E "^CONFIG_(IDF_TARGET|ESP32S3_SPIRAM_SUPPORT|SPIRAM_MODE_OCT|BT_ENABLED|BT_SINK|I2S_|SPDIF_|SDIF_)" sdkconfig || true
+          echo 'include_directories("$ENV{IDF_PATH}/components/esp_eth/include")' >> CMakeLists.txt
+          echo 'string(APPEND CMAKE_CXX_FLAGS " -fexceptions")' >> CMakeLists.txt
 
       - name: Compile Firmware
         shell: bash
@@ -88,4 +97,3 @@ jobs:
             build/partition_table/partition-table.bin
             build/ota_data_initial.bin
             build/squeezelite*.bin
-            build/flasher_args.json
