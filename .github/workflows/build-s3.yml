@@ -29,24 +29,23 @@ jobs:
 
           rm -rf build sdkconfig
 
-          # Partition table custom - WAJIB ada partisi nvs yang valid
+          # Partition table custom - factory harus align ke 0x10000
           cat << 'EOF' > partitions.csv
-          # Name,   Type, SubType, Offset,  Size,     Flags
-          nvs,      data, nvs,     0x9000,  0x6000,
-          otadata,  data, ota,     0xf000,  0x2000,
-          phy_init, data, phy,     0x11000, 0x1000,
-          factory,  app,  factory, 0x20000, 0x400000,
-          storage,  data, 0xff,    0x420000,0x100000,
-          EOF
+# Name,   Type, SubType, Offset,  Size,     Flags
+nvs,      data, nvs,     0x9000,  0x6000,
+otadata,  data, ota,     0xf000,  0x2000,
+phy_init, data, phy,     0x11000, 0x1000,
+factory,  app,  factory, 0x20000, 0x400000,
+storage,  data, 0xff,    0x420000,0x100000,
+EOF
 
-          # Konfigurasi sdkconfig.defaults yang kompatibel untuk ESP32-S3 N16R8
+          # Konfigurasi sdkconfig.defaults untuk ESP32-S3 N16R8
           cat << 'EOF' > sdkconfig.defaults
           CONFIG_IDF_TARGET="esp32s3"
           CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
           CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
           CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 
-          # Konfigurasi PSRAM Octal sesuai standar fisik N16R8
           CONFIG_SPIRAM=y
           CONFIG_SPIRAM_MODE_OCT=y
           CONFIG_SPIRAM_TYPE_AUTO=y
@@ -58,7 +57,6 @@ jobs:
           CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS=2
           CONFIG_COMPILER_CXX_EXCEPTIONS=y
 
-          # Partition table custom
           CONFIG_PARTITION_TABLE_CUSTOM=y
           CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
           CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
@@ -66,6 +64,7 @@ jobs:
           # Nonaktifkan Bluetooth (S3 tidak support BT Classic)
           CONFIG_BT_ENABLED=n
           CONFIG_BTAUDIO=n
+          CONFIG_BT_SINK=n
 
           # Audio I2S - pin aman, jauh dari JTAG/PSRAM/strapping
           CONFIG_I2S_NUM=0
@@ -77,12 +76,15 @@ jobs:
           EOF
 
           idf.py set-target esp32s3
+
+          # Fix: esp_eth.h tidak ketemu di wifi-manager
+          echo 'include_directories("$ENV{IDF_PATH}/components/esp_eth/include")' >> CMakeLists.txt
+          echo 'string(APPEND CMAKE_CXX_FLAGS " -fexceptions")' >> CMakeLists.txt
+
+          # Fix: bt_app_sink.h tidak ada di source untuk S3 (stub kosong)
           mkdir -p components/squeezelite/include_stub
           touch components/squeezelite/include_stub/bt_app_sink.h
           echo 'include_directories("${{ github.workspace }}/components/squeezelite/include_stub")' >> CMakeLists.txt
-
-          echo 'include_directories("$ENV{IDF_PATH}/components/esp_eth/include")' >> CMakeLists.txt
-          echo 'string(APPEND CMAKE_CXX_FLAGS " -fexceptions")' >> CMakeLists.txt
 
       - name: Compile Firmware
         shell: bash
